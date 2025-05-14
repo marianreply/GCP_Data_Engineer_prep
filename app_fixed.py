@@ -136,12 +136,12 @@ def display_single_question(question, in_quiz=False, default_answer=None, answer
     
     Parameters:
     - question: The question data to display
-    - in_quiz: Whether this is being displayed in a quiz (to handle radio buttons)
-    - default_answer: Default selected answer (for quiz mode)
-    - answer_key: Key for the radio button (for quiz mode)
+    - in_quiz: Whether this is being displayed in a quiz (to handle radio/checkbox inputs)
+    - default_answer: Default selected answer(s) (for quiz mode)
+    - answer_key: Key for the input widgets (for quiz mode)
     
     Returns:
-    - The user's selected answer if in quiz mode, otherwise None
+    - The user's selected answer(s) if in quiz mode, otherwise None
     """
     st.markdown(f"""
     <div class="question-card">
@@ -181,22 +181,48 @@ def display_single_question(question, in_quiz=False, default_answer=None, answer
         for img in question_images:
             display_image(img)
 
-    # For quiz mode, display the radio button for answers
+    # For quiz mode, display the appropriate input widget based on whether multiple answers are allowed
     selected_answer = None
     if in_quiz:
         options = list(question.get('answers', {}).keys())
         
-        # Find the default index if a default answer is provided
-        default_index = 0
-        if default_answer in options:
-            default_index = options.index(default_answer)
+        # Check if the correct answer has multiple letters (like "AB" or "BCD")
+        correct_answer = question.get('correct_answer', '')
+        is_multiple_choice = len(correct_answer) > 1
+        
+        if is_multiple_choice:
+            # For multiple choice questions, use checkboxes
+            st.write("**Select all that apply:**")
             
-        selected_answer = st.radio(
-            "Select your answer:", 
-            options, 
-            index=default_index, 
-            key=answer_key
-        )
+            # Initialize selected options list
+            selected_options = []
+            
+            # Parse default answer if provided (convert "ABC" to ["A", "B", "C"])
+            default_selections = []
+            if default_answer:
+                default_selections = list(default_answer)
+            
+            # Create a checkbox for each option
+            for option in options:
+                is_checked = option in default_selections
+                if st.checkbox(f"{option}", value=is_checked, key=f"{answer_key}_{option}"):
+                    selected_options.append(option)
+            
+            # Sort the selected options to ensure consistent answer format (e.g., "ABC" instead of "BAC")
+            selected_options.sort()
+            selected_answer = ''.join(selected_options)
+        else:
+            # For single choice questions, use radio buttons
+            default_index = 0
+            if default_answer in options:
+                default_index = options.index(default_answer)
+                
+            selected_answer = st.radio(
+                "Select your answer:", 
+                options, 
+                index=default_index, 
+                key=answer_key
+            )
     
     # Display answer options
     for option, answer_text in question.get('answers', {}).items():
@@ -233,7 +259,7 @@ def main():
     questions = load_questions()
     question_count = len(questions)
     st.sidebar.info(f"Total Questions: {question_count}")
-    st.sidebar.info(f"12 Questions about Case Study was not added to the quiz")
+    st.sidebar.info("Case study questions are not included in this exam prep.")
     
     # Navigation
     page = st.sidebar.radio("Navigation", ["Browse Questions", "Practice Quiz", "Statistics", "About"])
@@ -272,7 +298,7 @@ def main():
         st.title("Practice Quiz")
         
         # Quiz settings
-        num_questions = st.sidebar.slider("Number of questions", 10, 25, 50)
+        num_questions = st.sidebar.slider("Number of questions", 10, 50, 20)
         quiz_topics = st.sidebar.multiselect("Choose topics (optional)", 
                                              ["Machine Learning", "BigQuery", "Database", "Cloud Storage", "Data Processing"],
                                              [])
@@ -380,6 +406,15 @@ def main():
                 for idx, question in enumerate(quiz_questions):
                     user_answer = answers.get(idx, "")
                     correct_answer = question["correct_answer"]
+                    
+                    # Sort the letters in user_answer to ensure consistent comparison for multi-answer questions
+                    if user_answer and len(user_answer) > 1:
+                        user_answer = ''.join(sorted(user_answer))
+                    
+                    # Sort the letters in correct_answer to ensure consistent comparison
+                    if correct_answer and len(correct_answer) > 1:
+                        correct_answer = ''.join(sorted(correct_answer))
+                    
                     is_correct = user_answer == correct_answer
                     
                     if is_correct:
@@ -388,7 +423,7 @@ def main():
                     results_data.append({
                         "Question": f"Q{idx+1}",
                         "Your Answer": user_answer,
-                        "Correct Answer": correct_answer,
+                        "Correct Answer": question["correct_answer"],  # Keep original order for display
                         "Result": "Correct" if is_correct else "Incorrect"
                     })
                 
@@ -424,7 +459,12 @@ def main():
                 for idx, question in enumerate(quiz_questions):
                     user_answer = answers.get(idx, "")
                     correct_answer = question["correct_answer"]
-                    is_correct = user_answer == correct_answer
+                    
+                    # Sort answers for comparison (not for display)
+                    user_answer_sorted = ''.join(sorted(user_answer)) if user_answer and len(user_answer) > 1 else user_answer
+                    correct_answer_sorted = ''.join(sorted(correct_answer)) if correct_answer and len(correct_answer) > 1 else correct_answer
+                    
+                    is_correct = user_answer_sorted == correct_answer_sorted
                     
                     with st.expander(f"Question {idx+1}: {'✓' if is_correct else '✗'}"):
                         st.markdown("<div class='question-card'>", unsafe_allow_html=True)
