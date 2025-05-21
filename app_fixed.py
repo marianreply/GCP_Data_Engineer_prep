@@ -226,9 +226,11 @@ def display_single_question(question, in_quiz=False, default_answer=None, answer
     
     # Display answer options
     for option, answer_text in question.get('answers', {}).items():
+        # Remove 'Most Voted' tag from answer text for fairness
+        clean_answer_text = answer_text.replace(' Most Voted', '').replace('Most Voted', '').strip()
         st.markdown(f"""
         <div class='answer-option'>
-            <strong>{option}:</strong> {answer_text}
+            <strong>{option}:</strong> {clean_answer_text}
         </div>
         """, unsafe_allow_html=True)
         
